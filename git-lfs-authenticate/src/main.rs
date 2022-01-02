@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde_json::json;
 
@@ -47,28 +47,12 @@ struct Claim {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Cli::parse();
-    // assert_eq!(args.repo.split("/").count(), 2);
-    assert!(args.repo.ends_with(".git"));
+
     std::env::set_current_dir("/home/guochao")?;
+    assert!(args.repo.ends_with(".git"));
+    assert!(Path::new(&args.repo).exists());
+
     let secret = EncodingKey::from_secret("secret".as_ref());
-
-    // if let Err(err) = dotenv::dotenv() {
-    //     eprintln!("{}", err);
-    // }
-
-    // if let Err(err) = dotenv::from_path(args.config) {
-    //     eprintln!("{}", err);
-    // }
-
-    // let conn = database::connection::from_env()?;
-    // let users = database::user::query_users_by_public_key_fingerprint(
-    //     &conn,
-    //     std::env::var("FINGERPRINT")?,
-    // )?;
-    // for (idx, (user, pubkey)) in users.iter().enumerate() {
-    //     eprintln!("{}: {} {}", idx, user.username, pubkey.fingerprint);
-    // }
-    // assert_eq!(users.len(), 1);
 
     let command = String::from(match args.command {
         Commands::Download => "download",
