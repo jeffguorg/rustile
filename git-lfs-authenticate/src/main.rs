@@ -47,7 +47,7 @@ struct Claim {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Cli::parse();
-    assert_eq!(args.repo.split("/").count(), 2);
+    // assert_eq!(args.repo.split("/").count(), 2);
     assert!(args.repo.ends_with(".git"));
     std::env::set_current_dir("/home/guochao")?;
     let secret = EncodingKey::from_secret("secret".as_ref());
