@@ -1,5 +1,15 @@
 {% extends "_git_base.html" %}
 
 {% block git_content %}
-Blob
+Blob {{ size }} <a href="/{{repo_path}}/raw"></a>
+{% match text_content %}
+{% when Some with (content) %}
+<pre>
+    <code>
+        {{content}}
+    </code>
+</pre>
+{% when None %}
+unable to view binary files. download to view.
+{% endmatch %}
 {% endblock %}

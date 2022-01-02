@@ -1,5 +1,3 @@
-use std::fmt::Display;
-
 use askama::Template;
 use git2::ObjectType;
 
@@ -48,6 +46,9 @@ pub struct GitTreePage {
 #[template(path = "git_blob_page.html")]
 pub struct GitBlobPage {
     pub _parent: GitBaseTemplate,
+
+    pub text_content: Option<String>,
+    pub size: usize,
 }
 
 #[derive(Template)]

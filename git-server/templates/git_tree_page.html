@@ -1,20 +1,15 @@
 {% extends "_git_base.html" %}
 
 {% block git_content %}
-Tree
 <ul>
+    Tree
     {% match readme %}
     {% when Some with (val) %}
     {{val}}
     {% when None %}
     {% endmatch %}
     {% for entry in entries %}
-    {% match entry.kind %}
-    {% when Tree %}
-    <li><a href="/{{repo_path}}/tree/{{ref_name}}{% match object_path %}{% when Some with(path) %}/{{path}}{% when None%}{% endmatch %}/{{entry.name}}">{{entry.name}}</a></li>
-    {% when Blob %}
-    <li><a href="/{{repo_path}}/blob/{{ref_name}}{% match object_path %}{% when Some with(path) %}/{{path}}{% when None%}{% endmatch %}/{{entry.name}}">{{entry.name}}</a></li>
-    {% endmatch %}
+    <li><a href="/{{repo_path}}/{{entry.kind}}/{{ref_name}}{% match object_path %}{% when Some with(path) %}/{{path}}{% when None%}{% endmatch %}/{{entry.name}}">{{entry.name}}</a></li>
     {% endfor %}
 </ul>
 {% endblock %}

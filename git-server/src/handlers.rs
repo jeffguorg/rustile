@@ -39,10 +39,10 @@ fn extract_oid_from_name(
         Ok(branches) => {
             for branch in branches {
                 match branch {
-                    Ok((branch, kind)) => {
+                    Ok((branch, _kind)) => {
                         if let Ok(mayby_name) = branch.name() {
                             if let Some(_name) = mayby_name {
-                                println!("{:?}, {:?}", _name, kind);
+                                // println!("{:?}, {:?}", _name, _kind);
                                 if _name == name {
                                     return Ok(branch.get().target());
                                 }
@@ -62,15 +62,24 @@ fn extract_oid_from_name(
             }
             Err(err) => return Err(err),
         },
-        Err(err) => {
-            println!("failed to get branch: {}", err);
+        Err(_err) => {
+            // println!("failed to get branch: {}", _err);
         }
     }
-    repo.tag_foreach(|oid, name| {
-        println!("{:?}", String::from_utf8(name.to_vec()));
+    let mut maybe_oid = None;
+    repo.tag_foreach(|oid, unparsed| {
+        if let Ok(parsed) = String::from_utf8(unparsed.to_vec()) {
+            // println!("{:?}", parsed);
+            if name == parsed {
+                maybe_oid = Some(oid);
+            }
+        }
         return true;
     })?;
-    println!("extracting oid from name: {}", name);
+    if maybe_oid != None {
+        return Ok(maybe_oid);
+    }
+    // println!("extracting oid from name: {}", name);
     match Oid::from_str(name.as_str()) {
         Ok(oid) => Ok(Some(oid)),
         Err(err) => Err(err),
@@ -114,16 +123,16 @@ async fn git_repo_page(
             Ok(obj) => obj,
             Err(err) => return Err(format!("failed to find object: {}", err)),
         };
-        println!("spec oid: {:?}, object: {:?}", spec_oid, spec_object);
+        // println!("spec oid: {:?}, object: {:?}", spec_oid, spec_object);
 
         let mut path_oid = None;
         let mut path_type = None;
         if let Some(kind) = spec_object.kind() {
             if kind != ObjectType::Blob {
-                println!("is peeling to tree");
+                // println!("is peeling to tree");
                 match spec_object.peel_to_tree() {
                     Ok(tree) => {
-                        println!("tree ok: {:?}", tree);
+                        // println!("tree ok: {:?}", tree);
                         if let Some(object_path) = _object_path {
                             match tree.get_path(Path::new(object_path.as_str())) {
                                 Ok(entry) => {
@@ -141,7 +150,7 @@ async fn git_repo_page(
                 }
             }
         }
-        println!("path oid: {:?}, type: {:?}", path_oid, path_type);
+        // println!("path oid: {:?}, type: {:?}", path_oid, path_type);
 
         return Ok((
             branches,
@@ -155,7 +164,7 @@ async fn git_repo_page(
     .await?;
 
     if path_type.unwrap() == ObjectType::Tree && object_type == "tree" {
-        println!("path_type: {:?}", path_type);
+        // println!("path_type: {:?}", path_type);
 
         let _repo_path = repo_path.clone();
         let _object_path = object_path.clone();
@@ -244,6 +253,45 @@ async fn git_repo_page(
             Err(err) => Err(actix_web::error::ErrorInternalServerError(err)),
         };
     } else if path_type.unwrap() == ObjectType::Blob && object_type == "blob" {
+        let _repo_path = repo_path.clone();
+        let _ref_name = ref_name.clone();
+        let (text_content, size) = web::block(move || {
+            let repo = match git2::Repository::open_bare(_repo_path.clone()) {
+                Ok(repo) => repo,
+                Err(err) => {
+                    return Err(format!("no such repo: {:?}", err));
+                }
+            };
+
+            let oid = match path_oid {
+                Some(oid) => oid,
+                None => return Err(format!("no such id: {:?}", _ref_name)),
+            };
+
+            let obj = match repo.find_object(oid, None) {
+                Ok(obj) => obj,
+                Err(err) => return Err(format!("failed to find object: {}", err)),
+            };
+            let blob = match obj.peel_to_blob() {
+                Ok(blob) => blob,
+                Err(err) => return Err(format!("failed to find tree: {}", err)),
+            };
+
+            let size = blob.size();
+            let text_content = if blob.is_binary() {
+                None
+            } else {
+                Some(match String::from_utf8(blob.content().to_vec()) {
+                    Ok(s) => s,
+                    Err(err) => return Err(format!("failed to find tree: {}", err)),
+                })
+            };
+
+            println!("blob: {:?}", blob);
+
+            Ok((text_content, size))
+        })
+        .await?;
         let page = GitBlobPage {
             _parent: GitBaseTemplate {
                 _parent: BaseTemplate::new().with_title(repo_path.clone()),
@@ -251,6 +299,9 @@ async fn git_repo_page(
                 branches,
                 tags,
             },
+
+            text_content,
+            size,
         };
 
         match page.into_response() {
@@ -281,7 +332,7 @@ async fn git_repo_detail(
     }
 }
 
-#[actix_web::get("/{path:.*\\.git}")]
+#[actix_web::get("/{path:.*\\.git}/")]
 async fn git_repo(
     web::Path(repo_path): web::Path<String>,
 ) -> Result<impl actix_web::Responder, actix_web::Error> {
