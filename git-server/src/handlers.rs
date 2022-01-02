@@ -36,14 +36,24 @@ fn extract_repo_info(repo: &git2::Repository) -> (Vec<String>, Vec<String>) {
     (branches, tags)
 }
 
-fn extract_oid_from_name(repo: &git2::Repository, name: String) -> Result<Oid, git2::Error> {
+fn extract_oid_from_name(
+    repo: &git2::Repository,
+    name: String,
+) -> Result<Option<Oid>, git2::Error> {
     println!("{:?}", repo.path());
     match repo.branches(None) {
         Ok(branches) => {
             for branch in branches {
                 match branch {
                     Ok((branch, kind)) => {
-                        println!("{:?}, {:?}", branch.name(), kind);
+                        if let Ok(mayby_name) = branch.name() {
+                            if let Some(_name) = mayby_name {
+                                println!("{:?}, {:?}", _name, kind);
+                                if _name == name {
+                                    return Ok(branch.get().target());
+                                }
+                            }
+                        }
                     }
                     Err(_) => todo!(),
                 }
@@ -54,7 +64,7 @@ fn extract_oid_from_name(repo: &git2::Repository, name: String) -> Result<Oid, g
     match repo.find_branch(&name, BranchType::Local) {
         Ok(branch) => match branch.get().peel_to_tree() {
             Ok(tree) => {
-                return Ok(tree.id());
+                return Ok(Some(tree.id()));
             }
             Err(err) => return Err(err),
         },
@@ -68,15 +78,16 @@ fn extract_oid_from_name(repo: &git2::Repository, name: String) -> Result<Oid, g
     })?;
     println!("extracting oid from name: {}", name);
     match Oid::from_str(name.as_str()) {
-        Ok(oid) => Ok(oid),
+        Ok(oid) => Ok(Some(oid)),
         Err(err) => Err(err),
     }
 }
 
 async fn git_repo_page(
     repo_path: String,
+    object_type: String,
     ref_name: String,
-    object_path: String,
+    object_path: Option<String>,
 ) -> Result<impl actix_web::Responder, actix_web::Error> {
     let _repo_path = repo_path.clone();
     let _ref_name = ref_name.clone();
@@ -92,7 +103,10 @@ async fn git_repo_page(
         let (branches, tags) = extract_repo_info(&repo);
 
         let spec_oid = match extract_oid_from_name(&repo, _ref_name.clone()) {
-            Ok(oid) => oid,
+            Ok(oid) => match oid {
+                Some(oid) => oid,
+                None => todo!(),
+            },
             Err(err) => {
                 return Err(format!(
                     "failed to extract oid from name '{}': {:?}.",
@@ -106,19 +120,34 @@ async fn git_repo_page(
             Ok(obj) => obj,
             Err(err) => return Err(format!("failed to find object: {}", err)),
         };
+        println!("spec oid: {:?}, object: {:?}", spec_oid, spec_object);
 
         let mut path_oid = None;
         let mut path_type = None;
         if let Some(kind) = spec_object.kind() {
             if kind != ObjectType::Blob {
-                if let Ok(tree) = spec_object.peel_to_tree() {
-                    if let Ok(entry) = tree.get_path(Path::new(_object_path.as_str())) {
-                        path_oid = Some(entry.id());
-                        path_type = entry.kind();
+                println!("is peeling to tree");
+                match spec_object.peel_to_tree() {
+                    Ok(tree) => {
+                        println!("tree ok: {:?}", tree);
+                        if let Some(object_path) = _object_path {
+                            match tree.get_path(Path::new(object_path.as_str())) {
+                                Ok(entry) => {
+                                    path_oid = Some(entry.id());
+                                    path_type = entry.kind();
+                                }
+                                Err(err) => println!("failed to get entry on path: {}", err),
+                            }
+                        } else {
+                            path_oid = Some(tree.id());
+                            path_type = Some(ObjectType::Tree);
+                        }
                     }
+                    Err(err) => println!("falied to peel to tree: {}", err),
                 }
             }
         }
+        println!("path oid: {:?}, type: {:?}", path_oid, path_type);
 
         return Ok((
             branches,
@@ -131,188 +160,96 @@ async fn git_repo_page(
     })
     .await?;
 
-    if spec_kind == ObjectType::Commit
-        || spec_kind == ObjectType::Tag
-        || spec_kind == ObjectType::Tree
-    {
+    if path_type.unwrap() == ObjectType::Tree && object_type == "tree" {
         println!("path_type: {:?}", path_type);
 
-        if let Some(kind) = path_type {
-            if kind == ObjectType::Tree {
-                let _repo_path = repo_path.clone();
-                let _object_path = object_path.clone();
-                let _ref_name = ref_name.clone();
-                let (entries, readme) = web::block(move || {
-                    let repo = match git2::Repository::open_bare(_repo_path.clone()) {
-                        Ok(repo) => repo,
-                        Err(err) => {
-                            return Err(format!("no such repo: {:?}", err));
-                        }
-                    };
+        let _repo_path = repo_path.clone();
+        let _object_path = object_path.clone();
+        let _ref_name = ref_name.clone();
+        let (entries, readme) = web::block(move || {
+            let repo = match git2::Repository::open_bare(_repo_path.clone()) {
+                Ok(repo) => repo,
+                Err(err) => {
+                    return Err(format!("no such repo: {:?}", err));
+                }
+            };
 
-                    let oid = match path_oid {
-                        Some(oid) => oid,
-                        None => return Err(format!("no such id: {:?}", _ref_name)),
-                    };
+            let oid = match path_oid {
+                Some(oid) => oid,
+                None => return Err(format!("no such id: {:?}", _ref_name)),
+            };
 
-                    let obj = match repo.find_object(oid, None) {
-                        Ok(obj) => obj,
-                        Err(err) => return Err(format!("failed to find object: {}", err)),
-                    };
-                    let tree = match obj.peel_to_tree() {
-                        Ok(tree) => tree,
-                        Err(err) => return Err(format!("failed to find tree: {}", err)),
-                    };
+            let obj = match repo.find_object(oid, None) {
+                Ok(obj) => obj,
+                Err(err) => return Err(format!("failed to find object: {}", err)),
+            };
+            let tree = match obj.peel_to_tree() {
+                Ok(tree) => tree,
+                Err(err) => return Err(format!("failed to find tree: {}", err)),
+            };
 
-                    let mut entries = Vec::new();
-                    let mut readme_blob = None;
-                    for entry in tree.iter() {
-                        if let Some(name) = entry.name() {
-                            entries.push(String::from(name));
-                            if name == "README.md" || name == "README" {
-                                if let Some(kind) = entry.kind() {
-                                    if kind == ObjectType::Blob {
-                                        if let Ok(blob_obj) = entry.to_object(&repo) {
-                                            readme_blob = match blob_obj.as_blob() {
-                                                Some(blob) => Some(blob.clone()),
-                                                None => None,
-                                            }
-                                        }
+            let mut entries = Vec::new();
+            let mut readme_blob = None;
+            for entry in tree.iter() {
+                if let Some(name) = entry.name() {
+                    entries.push((String::from(name), entry.kind().unwrap()));
+                    if name == "README.md" || name == "README" {
+                        if let Some(kind) = entry.kind() {
+                            if kind == ObjectType::Blob {
+                                if let Ok(blob_obj) = entry.to_object(&repo) {
+                                    readme_blob = match blob_obj.as_blob() {
+                                        Some(blob) => Some(blob.clone()),
+                                        None => None,
                                     }
                                 }
                             }
                         }
                     }
-                    let readme = match readme_blob {
-                        None => None,
-                        Some(blob) => {
-                            if blob.is_binary() {
-                                None
-                            } else {
-                                if let Ok(s) = String::from_utf8(blob.content().to_vec()) {
-                                    Some(s)
-                                } else {
-                                    None
-                                }
-                            }
-                        }
-                    };
-
-                    Ok((entries, readme))
-                })
-                .await?;
-
-                let page = GitTreePage {
-                    _parent: GitBaseTemplate {
-                        _parent: BaseTemplate::new().with_title(repo_path.clone()),
-                        repo_path,
-                        branches,
-                        tags,
-                    },
-                    object_path,
-                    entries,
-                    ref_name,
-                    readme,
-                };
-
-                return match page.into_response() {
-                    Ok(response) => Ok(response),
-                    Err(err) => Err(actix_web::error::ErrorInternalServerError(err)),
-                };
-            } else if kind == ObjectType::Blob {
-                let _repo_path = repo_path.clone();
-                let _object_path = object_path.clone();
-                let _ref_name = ref_name.clone();
-                let (entries, readme) = web::block(move || {
-                    let repo = match git2::Repository::open_bare(_repo_path.clone()) {
-                        Ok(repo) => repo,
-                        Err(err) => {
-                            return Err(format!("no such repo: {:?}", err));
-                        }
-                    };
-
-                    let oid = match extract_oid_from_name(&repo, _ref_name.clone()) {
-                        Ok(oid) => oid,
-                        Err(err) => {
-                            return Err(format!(
-                                "failed to extract oid from name '{}': {:?}",
-                                _ref_name.clone(),
-                                err
-                            ))
-                        }
-                    };
-
-                    let obj = match repo.find_object(oid, None) {
-                        Ok(obj) => obj,
-                        Err(err) => return Err(format!("failed to find object: {}", err)),
-                    };
-                    let tree = match obj.peel_to_tree() {
-                        Ok(tree) => tree,
-                        Err(err) => return Err(format!("failed to find tree: {}", err)),
-                    };
-
-                    let mut entries = Vec::new();
-                    let mut readme_blob = None;
-                    for entry in tree.iter() {
-                        if let Some(name) = entry.name() {
-                            entries.push(String::from(name));
-                            if name == "README.md" || name == "README" {
-                                if let Some(kind) = entry.kind() {
-                                    if kind == ObjectType::Blob {
-                                        if let Ok(blob_obj) = entry.to_object(&repo) {
-                                            readme_blob = match blob_obj.as_blob() {
-                                                Some(blob) => Some(blob.clone()),
-                                                None => None,
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    let readme = match readme_blob {
-                        None => None,
-                        Some(blob) => {
-                            if blob.is_binary() {
-                                None
-                            } else {
-                                if let Ok(s) = String::from_utf8(blob.content().to_vec()) {
-                                    Some(s)
-                                } else {
-                                    None
-                                }
-                            }
-                        }
-                    };
-
-                    Ok((entries, readme))
-                })
-                .await?;
-
-                let page = GitTreePage {
-                    _parent: GitBaseTemplate {
-                        _parent: BaseTemplate::new().with_title(repo_path.clone()),
-                        repo_path,
-                        branches,
-                        tags,
-                    },
-                    object_path,
-                    entries,
-                    ref_name,
-                    readme,
-                };
-
-                return match page.into_response() {
-                    Ok(response) => Ok(response),
-                    Err(err) => Err(actix_web::error::ErrorInternalServerError(err)),
-                };
-            } else {
-                todo!();
+                }
             }
-        } else {
-            todo!();
-        }
-    } else if spec_kind == ObjectType::Blob {
+            let readme = match readme_blob {
+                None => None,
+                Some(blob) => {
+                    if blob.is_binary() {
+                        None
+                    } else {
+                        if let Ok(s) = String::from_utf8(blob.content().to_vec()) {
+                            Some(s)
+                        } else {
+                            None
+                        }
+                    }
+                }
+            };
+
+            Ok((entries, readme))
+        })
+        .await?;
+
+        let page = GitTreePage {
+            _parent: GitBaseTemplate {
+                _parent: BaseTemplate::new().with_title(repo_path.clone()),
+                repo_path,
+                branches,
+                tags,
+            },
+            object_path,
+            entries: entries
+                .iter()
+                .map(|(name, kind)| Entry {
+                    name: name.clone(),
+                    kind: kind.clone(),
+                })
+                .collect(),
+            ref_name,
+            readme,
+        };
+
+        return match page.into_response() {
+            Ok(response) => Ok(response),
+            Err(err) => Err(actix_web::error::ErrorInternalServerError(err)),
+        };
+    } else if path_type.unwrap() == ObjectType::Blob && object_type == "blob" {
         let page = GitBlobPage {
             _parent: GitBaseTemplate {
                 _parent: BaseTemplate::new().with_title(repo_path.clone()),
@@ -334,18 +271,33 @@ async fn git_repo_page(
     }
 }
 
-#[actix_web::get("/{repo_path:.*\\.git}/tree/{ref_name}/{object_path:.*}")]
+#[actix_web::get("/{repo_path:.*\\.git}/{object_type:(tree|blob)}/{ref_name}/{object_path:.*}")]
 async fn git_repo_detail(
-    web::Path((repo_path, ref_name, object_path)): web::Path<(String, String, String)>,
+    web::Path((repo_path, object_type, ref_name, object_path)): web::Path<(
+        String,
+        String,
+        String,
+        String,
+    )>,
 ) -> Result<impl actix_web::Responder, actix_web::Error> {
-    git_repo_page(repo_path, ref_name, object_path).await
+    if object_path != "" {
+        git_repo_page(repo_path, object_type, ref_name, Some(object_path)).await
+    } else {
+        git_repo_page(repo_path, object_type, ref_name, None).await
+    }
 }
 
 #[actix_web::get("/{path:.*\\.git}")]
 async fn git_repo(
     web::Path(repo_path): web::Path<String>,
 ) -> Result<impl actix_web::Responder, actix_web::Error> {
-    git_repo_page(repo_path, String::from("master"), String::from("/")).await
+    git_repo_page(
+        repo_path,
+        String::from("tree"),
+        String::from("master"),
+        None,
+    )
+    .await
 }
 
 #[actix_web::get("/{path:.*}")]

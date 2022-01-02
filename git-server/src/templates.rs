@@ -1,4 +1,7 @@
+use std::fmt::Display;
+
 use askama::Template;
+use git2::ObjectType;
 
 #[derive(Template)]
 #[template(path = "_base.html")]
@@ -26,13 +29,18 @@ pub struct GitBaseTemplate {
     pub tags: Vec<String>,
 }
 
+pub struct Entry {
+    pub name: String,
+    pub kind: ObjectType,
+}
+
 #[derive(Template)]
 #[template(path = "git_tree_page.html")]
 pub struct GitTreePage {
     pub _parent: GitBaseTemplate,
     pub ref_name: String,
-    pub object_path: String,
-    pub entries: Vec<String>,
+    pub object_path: Option<String>,
+    pub entries: Vec<Entry>,
     pub readme: Option<String>,
 }
 

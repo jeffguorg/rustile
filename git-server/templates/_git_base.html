@@ -9,13 +9,13 @@
 <ul>
     Branches
     {% for branch in branches %}
-    <li><a href="/{{repo_path}}/{{branch}}/">{{ branch }}</a></li>
+    <li><a href="/{{repo_path}}/tree/{{branch}}/">{{ branch }}</a></li>
     {% endfor %}
 </ul>
 <ul>
     Tags
     {% for tag in tags %}
-    <li><a href="/{{repo_path}}/{{tag}}/">{{ tag }}</a></li>
+    <li><a href="/{{repo_path}}/tree/{{tag}}/">{{ tag }}</a></li>
     {% endfor %}
 </ul>
 {% block git_content %}{% endblock %}

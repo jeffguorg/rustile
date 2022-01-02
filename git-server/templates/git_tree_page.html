@@ -9,8 +9,12 @@ Tree
     {% when None %}
     {% endmatch %}
     {% for entry in entries %}
-
-    <li><a href="/{{repo_path}}/{{ref_name}}/{% if object_path.len() > 0 %}{{object_path}}/{% endif %}/{{entry}}">"{{ object_path.len() }}"{{entry}}</a></li>
+    {% match entry.kind %}
+    {% when Tree %}
+    <li><a href="/{{repo_path}}/tree/{{ref_name}}{% match object_path %}{% when Some with(path) %}/{{path}}{% when None%}{% endmatch %}/{{entry.name}}">{{entry.name}}</a></li>
+    {% when Blob %}
+    <li><a href="/{{repo_path}}/blob/{{ref_name}}{% match object_path %}{% when Some with(path) %}/{{path}}{% when None%}{% endmatch %}/{{entry.name}}">{{entry.name}}</a></li>
+    {% endmatch %}
     {% endfor %}
 </ul>
 {% endblock %}
