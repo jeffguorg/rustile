@@ -1,0 +1,16 @@
+{% extends "_base.html" %}
+
+{% block title %}Index{% endblock %}
+
+{% block head %}
+<style>
+</style>
+{% endblock %}
+
+{% block content %}
+<ul>
+    {% for path in paths %}
+    <li><a href="/{{path}}">{{ path }}</a></li>
+    {% endfor %}
+</ul>
+{% endblock %}

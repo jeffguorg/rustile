@@ -1,0 +1,16 @@
+{% extends "_git_base.html" %}
+
+{% block git_content %}
+Tree
+<ul>
+    {% match readme %}
+    {% when Some with (val) %}
+    {{val}}
+    {% when None %}
+    {% endmatch %}
+    {% for entry in entries %}
+
+    <li><a href="/{{repo_path}}/{{ref_name}}/{% if object_path.len() > 0 %}{{object_path}}/{% endif %}/{{entry}}">"{{ object_path.len() }}"{{entry}}</a></li>
+    {% endfor %}
+</ul>
+{% endblock %}

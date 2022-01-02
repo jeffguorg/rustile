@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>{% block title %}{% match title %}{% when Some with (val) %}{{ val }} -{% when None %}{% endmatch %} {% endblock %}Rustile</title>
+    {% block head %}{% endblock %}
+</head>
+
+<body>
+    <div id="content">
+        {% block content %}{% endblock %}
+    </div>
+</body>
+
+</html>
