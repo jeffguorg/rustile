@@ -9,30 +9,24 @@ use crate::templates::*;
 fn extract_repo_info(repo: &git2::Repository) -> (Vec<String>, Vec<String>) {
     let mut branches = Vec::new();
     let mut tags = Vec::new();
-    if let Ok(references) = repo.references() {
-        for reference in references {
-            if let Ok(r) = reference {
-                if let Ok(name) = String::from_utf8(r.shorthand_bytes().to_vec()) {
-                    if r.is_branch() {
-                        branches.push(name.clone());
-                        if name == "master" || name == "main" {
-                            if let Ok(commit) = r.peel_to_commit() {
-                                if let Ok(tree) = commit.tree() {
-                                    if let Some(entry) = tree.get_name("README.md") {
-                                        if let Ok(obj) = entry.to_object(&repo) {
-                                            println!("{:?}", obj)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    } else if r.is_tag() {
-                        tags.push(name);
+    if let Ok(repo_branches) = repo.branches(Some(BranchType::Local)) {
+        for branch in repo_branches {
+            if let Ok((branch, _)) = branch {
+                if let Ok(name) = branch.name() {
+                    if let Some(name) = name {
+                        branches.push(String::from(name));
                     }
                 }
             }
         }
     }
+    repo.tag_foreach(|_, tag_name| {
+        if let Ok(tag) = String::from_utf8(tag_name.to_vec()) {
+            tags.push(tag);
+        }
+        true
+    })
+    .unwrap();
     (branches, tags)
 }
 
