@@ -4,6 +4,10 @@ use actix_web::{web, HttpResponse};
 use askama_actix::TemplateIntoResponse;
 use git2::{BranchType, ObjectType, Oid};
 
+pub use lfs::*;
+
+mod lfs;
+
 use crate::templates::*;
 
 fn extract_repo_info(repo: &git2::Repository) -> (Vec<String>, Vec<String>) {
@@ -374,9 +378,4 @@ async fn index(web::Path(path): web::Path<String>) -> actix_web::Result<HttpResp
     .await?;
 
     Ok(IndexPage { paths: entries }.into_response()?)
-}
-
-#[actix_web::post("/{repo_path:.*\\.git}/{ref_name}/info/lfs")]
-async fn git_lfs_batch() -> impl actix_web::Responder {
-    ""
 }
