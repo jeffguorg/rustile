@@ -56,7 +56,8 @@ pub struct GitBlobPage {
 }
 
 #[derive(Template)]
-#[template(path = "index.html")]
-pub struct IndexPage {
-    pub paths: Vec<String>,
+#[template(path = "file_browser.html")]
+pub struct FileBrowserPage {
+    pub path: String,
+    pub entries: Vec<String>,
 }

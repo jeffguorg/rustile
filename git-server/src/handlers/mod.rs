@@ -382,11 +382,11 @@ async fn git_repo(
 
 #[actix_web::get("/{path:.*}")]
 async fn index(web::Path(path): web::Path<String>) -> actix_web::Result<HttpResponse> {
-    let mut path = path;
-    if path == "" {
-        path = String::from(".");
+    let mut _path = path.clone();
+    if _path == "" {
+        _path = String::from(".");
     }
-    let entries = web::block(move || match std::fs::read_dir(path) {
+    let entries = web::block(move || match std::fs::read_dir(_path) {
         Ok(read_dir) => {
             let mut v = Vec::new();
             for entry in read_dir {
@@ -408,5 +408,5 @@ async fn index(web::Path(path): web::Path<String>) -> actix_web::Result<HttpResp
     })
     .await?;
 
-    Ok(IndexPage { paths: entries }.into_response()?)
+    Ok(FileBrowserPage { entries, path }.into_response()?)
 }
