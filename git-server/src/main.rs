@@ -1,4 +1,4 @@
-use actix_web::{App, HttpServer};
+use actix_web::{middleware::Logger, App, HttpServer};
 use s3::{creds::Credentials, Bucket, Region};
 
 use handlers::*;
@@ -15,6 +15,8 @@ pub struct AppContext {
 async fn main() -> std::io::Result<()> {
     std::env::set_current_dir(std::env::var("HOME").unwrap_or(String::from("/")))?;
 
+    env_logger::init();
+
     HttpServer::new(|| {
         let mut bucket = Bucket::new_with_path_style(
             std::env::var("AWS_BUCKET_NAME").unwrap().as_str(),
@@ -29,6 +31,7 @@ async fn main() -> std::io::Result<()> {
 
         App::new()
             .data(AppContext { bucket })
+            .wrap(Logger::new("%a %{User-Agent}i"))
             .service(lfs_lock_verify)
             .service(lfs_objects_batch)
             .service(git_repo_detail)

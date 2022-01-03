@@ -11,6 +11,7 @@ askama = "0.10"
 askama_actix = "0.11"
 chrono = {version = "0.4", features = ["serde"]}
 diesel = {version = "1.4", features = ["mysql", "chrono"]}
+env_logger = "0.9"
 futures = "0.3"
 git2 = "0.13"
 rust-s3 = "0.28"
