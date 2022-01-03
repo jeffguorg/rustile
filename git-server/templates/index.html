@@ -2,15 +2,18 @@
 
 {% block title %}Index{% endblock %}
 
-{% block head %}
-<style>
-</style>
-{% endblock %}
-
 {% block content %}
-<ul>
-    {% for path in paths %}
-    <li><a href="/{{path}}/">{{ path }}</a></li>
-    {% endfor %}
-</ul>
+<div class="container py-2">
+    <table class="table">
+        <tbody>
+            {% for path in paths %}
+            <tr>
+                <td>
+                    <a href="/{{path}}/">{{ path }}</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
 {% endblock %}

@@ -1,22 +1,61 @@
 {% extends "_base.html" %}
 
-{% block head %}
-<style>
-</style>
-{% endblock %}
-
 {% block content %}
-<ul>
-    Branches
-    {% for branch in branches %}
-    <li><a href="/{{repo_path}}/tree/{{branch}}/">{{ branch }}</a></li>
-    {% endfor %}
-</ul>
-<ul>
-    Tags
-    {% for tag in tags %}
-    <li><a href="/{{repo_path}}/tree/{{tag}}/">{{ tag }}</a></li>
-    {% endfor %}
-</ul>
-{% block git_content %}{% endblock %}
+<div class="container">
+    <div class="row my-1">
+        <div class="col">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb align-middle">
+                    {% for (section, path) in breadcrumb %}
+                    {% match object_path %}
+                    {% when Some with (object_path) %}
+                    {% if path == object_path %}
+                    <li class="breadcrumb-item active" aria-current="/{{repo_path}}/tree/{{ref_name}}/{{path}}">
+                        {{section}}
+                    </li>
+                    {% else %}
+                    <li class="breadcrumb-item" aria-current="/{{repo_path}}/tree/{{ref_name}}/{{path}}">
+                        <a href="/{{repo_path}}/tree/{{ref_name}}/{{path}}">{{section}}</a>
+                    </li>
+                    {% endif %}
+                    {% when None %}
+                    {% if path.is_empty() %}
+                    <li class="breadcrumb-item active" aria-current="/{{repo_path}}/tree/{{ref_name}}/{{path}}">
+                        {{section}}
+                    </li>
+                    {% else %}
+                    <li class="breadcrumb-item" aria-current="/{{repo_path}}/tree/{{ref_name}}/{{path}}">
+                        <a href="/{{repo_path}}/tree/{{ref_name}}/{{path}}">{{section}}</a>
+                    </li>
+                    {% endif %}
+                    {% endmatch %}
+                    {% endfor %}
+                </ol>
+            </nav>
+        </div>
+        <div class="row my-1">
+            <div class="col">
+                <div class="btn-group shadow">
+                    <a class="btn btn-light" href="/{{repo_path}}/{{object_type}}/{{ref_name}}/">Current {{spec_kind}}/{{ref_name}}</a>
+                    <button type="button" class="btn btn-light dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
+                        <span class="visually-hidden">Toggle Dropdown</span>
+                    </button>
+                    <ul class="dropdown-menu">
+                        {% for branch in branches %}
+                        <li><a class="dropdown-item" href="/{{repo_path}}/tree/{{branch}}/">{{ branch }}</a></li>
+                        {% endfor %}
+                        <li>
+                            <hr class="dropdown-divider">
+                        </li>
+                        {% for tag in tags %}
+                        <li><a class="dropdown-item" href="/{{repo_path}}/tree/{{tag}}/">{{ tag }}</a></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% block git_content %}{% endblock %}
+</div>
 {% endblock %}

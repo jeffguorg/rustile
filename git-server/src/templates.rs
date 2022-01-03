@@ -23,8 +23,14 @@ pub struct GitBaseTemplate {
     pub _parent: BaseTemplate,
 
     pub repo_path: String,
+    pub ref_name: String,
+    pub spec_kind: ObjectType,
+    pub object_type: String,
+    pub object_path: Option<String>,
     pub branches: Vec<String>,
     pub tags: Vec<String>,
+
+    pub breadcrumb: Vec<(String, String)>,
 }
 
 pub struct Entry {
@@ -36,8 +42,6 @@ pub struct Entry {
 #[template(path = "git_tree_page.html")]
 pub struct GitTreePage {
     pub _parent: GitBaseTemplate,
-    pub ref_name: String,
-    pub object_path: Option<String>,
     pub entries: Vec<Entry>,
     pub readme: Option<String>,
 }

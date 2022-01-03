@@ -10,6 +10,17 @@ mod lfs;
 
 use crate::templates::*;
 
+lazy_static::lazy_static! {
+    static ref TAG_CAPTURE: regex::Regex = regex::Regex::new("refs/tags/(?P<tag_name>.*)").unwrap();
+}
+
+fn extract_tag_shortname(s: String) -> Option<String> {
+    match TAG_CAPTURE.captures(&s) {
+        Some(captures) => captures.name("tag_name").map(|m| String::from(m.as_str())),
+        None => None,
+    }
+}
+
 fn extract_repo_info(repo: &git2::Repository) -> (Vec<String>, Vec<String>) {
     let mut branches = Vec::new();
     let mut tags = Vec::new();
@@ -26,7 +37,9 @@ fn extract_repo_info(repo: &git2::Repository) -> (Vec<String>, Vec<String>) {
     }
     repo.tag_foreach(|_, tag_name| {
         if let Ok(tag) = String::from_utf8(tag_name.to_vec()) {
-            tags.push(tag);
+            if let Some(shortname) = extract_tag_shortname(tag) {
+                tags.push(shortname);
+            }
         }
         true
     })
@@ -38,27 +51,6 @@ fn extract_oid_from_name(
     repo: &git2::Repository,
     name: String,
 ) -> Result<Option<Oid>, git2::Error> {
-    println!("{:?}", repo.path());
-    match repo.branches(None) {
-        Ok(branches) => {
-            for branch in branches {
-                match branch {
-                    Ok((branch, _kind)) => {
-                        if let Ok(mayby_name) = branch.name() {
-                            if let Some(_name) = mayby_name {
-                                // println!("{:?}, {:?}", _name, _kind);
-                                if _name == name {
-                                    return Ok(branch.get().target());
-                                }
-                            }
-                        }
-                    }
-                    Err(_) => todo!(),
-                }
-            }
-        }
-        Err(_) => todo!(),
-    };
     match repo.find_branch(&name, BranchType::Local) {
         Ok(branch) => match branch.get().peel_to_tree() {
             Ok(tree) => {
@@ -73,9 +65,10 @@ fn extract_oid_from_name(
     let mut maybe_oid = None;
     repo.tag_foreach(|oid, unparsed| {
         if let Ok(parsed) = String::from_utf8(unparsed.to_vec()) {
-            // println!("{:?}", parsed);
-            if name == parsed {
-                maybe_oid = Some(oid);
+            if let Some(shorthand) = extract_tag_shortname(parsed) {
+                if name == shorthand {
+                    maybe_oid = Some(oid);
+                }
             }
         }
         return true;
@@ -83,7 +76,6 @@ fn extract_oid_from_name(
     if maybe_oid != None {
         return Ok(maybe_oid);
     }
-    // println!("extracting oid from name: {}", name);
     match Oid::from_str(name.as_str()) {
         Ok(oid) => Ok(Some(oid)),
         Err(err) => Err(err),
@@ -99,7 +91,14 @@ async fn git_repo_page(
     let _repo_path = repo_path.clone();
     let _ref_name = ref_name.clone();
     let _object_path = object_path.clone();
-    let (branches, tags, _spec_oid, spec_kind, path_oid, path_type) = web::block(move || {
+    let (branches, tags, _spec_oid, spec_kind, path_oid, path_type): (
+        Vec<String>,
+        Vec<String>,
+        Oid,
+        ObjectType,
+        Option<Oid>,
+        Option<ObjectType>,
+    ) = web::block(move || {
         let repo = match git2::Repository::open_bare(_repo_path.clone()) {
             Ok(repo) => repo,
             Err(err) => {
@@ -127,34 +126,30 @@ async fn git_repo_page(
             Ok(obj) => obj,
             Err(err) => return Err(format!("failed to find object: {}", err)),
         };
-        // println!("spec oid: {:?}, object: {:?}", spec_oid, spec_object);
 
         let mut path_oid = None;
         let mut path_type = None;
         if let Some(kind) = spec_object.kind() {
             if kind != ObjectType::Blob {
-                // println!("is peeling to tree");
                 match spec_object.peel_to_tree() {
                     Ok(tree) => {
-                        // println!("tree ok: {:?}", tree);
                         if let Some(object_path) = _object_path {
                             match tree.get_path(Path::new(object_path.as_str())) {
                                 Ok(entry) => {
                                     path_oid = Some(entry.id());
                                     path_type = entry.kind();
                                 }
-                                Err(err) => println!("failed to get entry on path: {}", err),
+                                Err(err) => eprintln!("failed to get entry on path: {}", err),
                             }
                         } else {
                             path_oid = Some(tree.id());
                             path_type = Some(ObjectType::Tree);
                         }
                     }
-                    Err(err) => println!("falied to peel to tree: {}", err),
+                    Err(err) => eprintln!("falied to peel to tree: {}", err),
                 }
             }
         }
-        // println!("path oid: {:?}, type: {:?}", path_oid, path_type);
 
         return Ok((
             branches,
@@ -168,8 +163,6 @@ async fn git_repo_page(
     .await?;
 
     if path_type.unwrap() == ObjectType::Tree && object_type == "tree" {
-        // println!("path_type: {:?}", path_type);
-
         let _repo_path = repo_path.clone();
         let _object_path = object_path.clone();
         let _ref_name = ref_name.clone();
@@ -236,11 +229,30 @@ async fn git_repo_page(
         let page = GitTreePage {
             _parent: GitBaseTemplate {
                 _parent: BaseTemplate::new().with_title(repo_path.clone()),
-                repo_path,
+                repo_path: repo_path.clone(),
                 branches,
+                ref_name: ref_name.clone(),
+                spec_kind,
+                object_type: object_type.clone(),
+                object_path: object_path.clone(),
                 tags,
+
+                breadcrumb: match object_path {
+                    Some(s) => {
+                        let mut result = vec![(repo_path.clone(), String::new())];
+
+                        let mut pieces = Vec::new();
+                        for piece in s.split("/") {
+                            println!("{}", piece);
+                            pieces.push(String::from(piece));
+                            result.push((String::from(piece), pieces.join("/")))
+                        }
+
+                        result
+                    }
+                    None => vec![(repo_path.clone(), String::new())],
+                },
             },
-            object_path,
             entries: entries
                 .iter()
                 .map(|(name, kind)| Entry {
@@ -248,7 +260,6 @@ async fn git_repo_page(
                     kind: kind.clone(),
                 })
                 .collect(),
-            ref_name,
             readme,
         };
 
@@ -291,17 +302,37 @@ async fn git_repo_page(
                 })
             };
 
-            println!("blob: {:?}", blob);
-
             Ok((text_content, size))
         })
         .await?;
         let page = GitBlobPage {
             _parent: GitBaseTemplate {
                 _parent: BaseTemplate::new().with_title(repo_path.clone()),
-                repo_path,
+                repo_path: repo_path.clone(),
                 branches,
                 tags,
+
+                ref_name: ref_name.clone(),
+                spec_kind,
+
+                object_type,
+                object_path: object_path.clone(),
+
+                breadcrumb: match object_path {
+                    Some(s) => {
+                        let mut result = vec![(repo_path.clone(), String::new())];
+
+                        let mut pieces = Vec::new();
+                        for piece in s.split("/") {
+                            println!("{}", piece);
+                            pieces.push(String::from(piece));
+                            result.push((String::from(piece), pieces.join("/")))
+                        }
+
+                        result
+                    }
+                    None => vec![(repo_path.clone(), String::new())],
+                },
             },
 
             text_content,

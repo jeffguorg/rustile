@@ -1,7 +1,6 @@
 {% extends "_git_base.html" %}
 
 {% block git_content %}
-Blob {{ size }} <a href="/{{repo_path}}/raw"></a>
 {% match text_content %}
 {% when Some with (content) %}
 <pre>
