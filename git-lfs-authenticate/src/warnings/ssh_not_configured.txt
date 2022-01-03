@@ -1,0 +1,13 @@
+Hi, this is a simple implementation of [git-lfs-authenticate](https://github.com/git-lfs/git-lfs/blob/main/docs/api/server-discovery.md).
+
+But I found that some of the environment variables are missing and may lead this piece of code wrong bahavior. Please check this things:
+
+- PermitUserEnvironment is set to yes in /etc/ssh/sshd_config and sshd daemon is restarted
+- ssh keys added manually into authorized_keys have environment configured like this:
+  ```
+  environment="SSH_KEY_FINGERPRINT=..." ssh-rsa
+  ```
+  fingerprint of key can be found with
+  ```bash
+  ssh-keygen -E md5 -lf ~/.ssh/...
+  ```

@@ -46,11 +46,18 @@ struct Claim {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let warning_not_configured = include_bytes!("warnings/ssh_not_configured.txt");
+
     let args = Cli::parse();
 
     std::env::set_current_dir("/home/guochao")?;
     assert!(args.repo.ends_with(".git"));
     assert!(Path::new(&args.repo).exists());
+
+    if let Err(_) = std::env::var("SSH_KEY_FINGERPRINT") {
+        println!("{}", String::from_utf8(warning_not_configured.to_vec())?);
+        panic!("no proper environment.");
+    }
 
     let secret = EncodingKey::from_secret("secret".as_ref());
 
