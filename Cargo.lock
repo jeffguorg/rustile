@@ -1053,6 +1053,7 @@ dependencies = [
  "env_logger",
  "futures",
  "git2",
+ "jsonwebtoken",
  "lazy_static",
  "regex",
  "rust-s3",

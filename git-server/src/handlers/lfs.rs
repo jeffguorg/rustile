@@ -4,6 +4,7 @@ use actix_web::{web, HttpResponse};
 use futures::StreamExt;
 use serde::*;
 
+use crate::middleware::token_extractor::Token;
 use crate::AppContext;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -108,8 +109,11 @@ pub async fn lfs_objects_batch(
     web::Path(repo_path): web::Path<String>,
     body: web::Json<LFSBatchRequest>,
     appctx: actix_web::web::Data<AppContext>,
+    token: Token,
 ) -> Result<HttpResponse, actix_web::error::Error> {
     let mut objects = Vec::new();
+
+    assert_eq!(token.command, body.operation.to_string());
 
     for obj in body.objects.iter() {
         match appctx

@@ -59,7 +59,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         panic!("no proper environment.");
     }
 
-    let secret = EncodingKey::from_secret("secret".as_ref());
+    let secret = EncodingKey::from_secret(std::env::var("SECRET").unwrap().as_bytes());
 
     let command = String::from(match args.command {
         Commands::Download => "download",

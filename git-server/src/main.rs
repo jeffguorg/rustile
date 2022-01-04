@@ -1,9 +1,11 @@
 use actix_web::{middleware::Logger, App, HttpServer};
+use middleware::token_extractor::JWTSecret;
 use s3::{creds::Credentials, Bucket, Region};
 
 use handlers::*;
 
 pub mod handlers;
+pub mod middleware;
 pub mod templates;
 
 #[derive(Debug, Clone)]
@@ -30,6 +32,9 @@ async fn main() -> std::io::Result<()> {
         bucket.set_subdomain_style();
 
         App::new()
+            .app_data(JWTSecret(Box::new(
+                std::env::var("SECRET").unwrap().as_bytes().to_vec(),
+            )))
             .data(AppContext { bucket })
             .wrap(Logger::new("%a %{User-Agent}i"))
             .service(lfs_lock_verify)
