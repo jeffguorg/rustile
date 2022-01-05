@@ -32,9 +32,7 @@ async fn main() -> std::io::Result<()> {
         bucket.set_subdomain_style();
 
         App::new()
-            .app_data(JWTSecret(Box::new(
-                std::env::var("SECRET").unwrap().as_bytes().to_vec(),
-            )))
+            .app_data(JWTSecret(std::env::var("SECRET").unwrap()))
             .data(AppContext { bucket })
             .wrap(Logger::new("%a %{User-Agent}i"))
             .service(lfs_lock_verify)

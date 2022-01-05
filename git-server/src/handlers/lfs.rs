@@ -2,6 +2,7 @@ use std::{collections::HashMap, fmt::Display, str::FromStr};
 
 use actix_web::{web, HttpResponse};
 use futures::StreamExt;
+use log::debug;
 use serde::*;
 
 use crate::middleware::token_extractor::Token;
@@ -116,14 +117,21 @@ pub async fn lfs_objects_batch(
     assert_eq!(token.command, body.operation.to_string());
 
     for obj in body.objects.iter() {
-        match appctx
-            .bucket
-            .head_object(format!("{}/lfs/objects/{}", repo_path, obj.oid.clone()))
-            .await
+        debug!("check object: {}", obj.oid.clone());
+        let _appctx = appctx.clone();
+        let _repo_path = repo_path.clone();
+        let _obj = obj.clone();
+        match web::block(move || {
+            _appctx
+                .bucket
+                .head_object(format!("{}/lfs/objects/{}", _repo_path, _obj.oid.clone()))
+        })
+        .await
         {
             Ok(_) => continue,
-            Err(_err) => {}
-        };
+            Err(_) => debug!("add object {} to list", obj.oid),
+        }
+        debug!("object need operation: {}", obj.oid.clone());
         let expires_in = 3600;
         let href = match body.operation {
             LFSOperation::download => appctx
@@ -172,6 +180,7 @@ pub async fn lfs_objects_batch(
                 // ),
             ]),
         };
+        debug!("object processed: {}", obj.oid.clone());
 
         objects.push(LFSObject {
             oid: obj.oid.clone(),

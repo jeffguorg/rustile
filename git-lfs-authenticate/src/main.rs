@@ -1,6 +1,9 @@
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::{
+    ops::Add,
+    path::{Path, PathBuf},
+};
 
 use serde_json::json;
 
@@ -40,17 +43,27 @@ enum Commands {
 #[derive(Debug, Serialize, Deserialize)]
 struct Claim {
     sub: String,
-    iat: chrono::DateTime<chrono::Utc>,
+    iat: i64,
+    exp: i64,
 
     command: String,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    match dotenv::dotenv() {
+        Ok(path) => eprintln!("environment loaded from {:?}", path),
+        Err(_) => {}
+    }
+    match dotenv::from_path("/etc/git-server.env") {
+        Ok(_) => eprintln!("environment loaded from git-server"),
+        Err(_) => {}
+    }
+
     let warning_not_configured = include_bytes!("warnings/ssh_not_configured.txt");
 
     let args = Cli::parse();
 
-    std::env::set_current_dir("/home/guochao")?;
+    std::env::set_current_dir(std::env::var("HOME")?)?;
     assert!(args.repo.ends_with(".git"));
     assert!(Path::new(&args.repo).exists());
 
@@ -59,7 +72,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         panic!("no proper environment.");
     }
 
-    let secret = EncodingKey::from_secret(std::env::var("SECRET").unwrap().as_bytes());
+    let plain_secret = std::env::var("SECRET").unwrap();
+    let secret = EncodingKey::from_secret(plain_secret.as_bytes());
+    eprintln!("encoding key: {:?}", plain_secret);
 
     let command = String::from(match args.command {
         Commands::Download => "download",
@@ -72,7 +87,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "header": {
                 "Authorization": format!("Token {}", encode(&Header::default(), &Claim{
                     sub: String::from("git.jeffthecoder.xyz"),
-                    iat: chrono::Utc::now(),
+                    iat: chrono::Utc::now().timestamp(),
+                    exp: chrono::Utc::now().add(chrono::Duration::seconds(1800)).timestamp(),
 
                     command,
                 }, &secret)?),
