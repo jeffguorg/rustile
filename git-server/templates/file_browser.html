@@ -1,19 +1,52 @@
 {% extends "_base.html" %}
 
-{% block title %}Directory: {% if path.is_empty() %}Home{% else %}{{path}}{% endif %} - {% endblock %}
+{% block title %}Browse: {% if path.is_empty() %}Home{% else %}{{path}}{% endif %} - {% endblock %}
 
 {% block content %}
 <div class="container py-2">
+    {% if metadata.is_file() %}
+    {% match content %}
+    {% when Some with (val) %}
+    <pre>
+        <code>
+{{val}}
+        </code>
+    </pre>
+    {% when None %}
+    <p>
+        Binary file download to view: <a href="#">Some file</a>
+    </p>
+    {% endmatch %}
+    <!--metadata.is_file()-->
+
+    {% else if metadata.is_symlink() %}
+    <p>
+        {% if realpath.starts_with(rootfs) %}
+        Symlink to -> <a href="{{realpath.strip_prefix(rootfs).unwrap()}}">Some file</a>
+        {% else %}
+        Symlink outside git filesystem
+        {% endif %}
+    </p>
+    <!--metadata.is_symlink()-->
+
+    {% else if metadata.is_dir() %}
     <table class="table">
         <tbody>
             {% for entry in entries %}
             <tr>
                 <td>
-                    <a href="/{{entry}}/">{{ entry }}</a>
+                    <a href="{{path}}/{{entry}}">{{ entry }}</a>
                 </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
+    <!--metadata.is_dir()-->
+    {% else %}
+    <p>
+        Special file.
+    </p>
+    {% endif %}
+
 </div>
 {% endblock %}

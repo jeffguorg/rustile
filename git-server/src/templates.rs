@@ -1,3 +1,5 @@
+use std::fs::Metadata;
+
 use askama::Template;
 use git2::ObjectType;
 
@@ -58,6 +60,10 @@ pub struct GitBlobPage {
 #[derive(Template)]
 #[template(path = "file_browser.html")]
 pub struct FileBrowserPage {
+    pub metadata: Metadata,
+    pub rootfs: String,
     pub path: String,
+    pub realpath: String,
+    pub content: Option<String>,
     pub entries: Vec<String>,
 }

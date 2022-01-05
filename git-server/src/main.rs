@@ -1,3 +1,5 @@
+#![feature(is_symlink)]
+
 use actix_web::{middleware::Logger, App, HttpServer};
 use middleware::token_extractor::JWTSecret;
 use s3::{creds::Credentials, Bucket, Region};

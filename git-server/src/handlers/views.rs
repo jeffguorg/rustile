@@ -364,7 +364,7 @@ pub async fn git_repo_detail(
     }
 }
 
-#[actix_web::get("/{path:.*\\.git}/")]
+#[actix_web::get("/{path:.*\\.git}")]
 pub async fn git_repo(
     web::Path(repo_path): web::Path<String>,
 ) -> Result<impl actix_web::Responder, actix_web::Error> {
@@ -383,27 +383,66 @@ pub async fn index(web::Path(path): web::Path<String>) -> actix_web::Result<Http
     if _path == "" {
         _path = String::from(".");
     }
-    let entries = web::block(move || match std::fs::read_dir(_path) {
-        Ok(read_dir) => {
-            let mut v = Vec::new();
-            for entry in read_dir {
-                if let Ok(entry) = entry {
-                    if let Some(s) = entry.file_name().to_str() {
-                        if String::from(s).starts_with(".") {
-                            continue;
+
+    let (metadata, is_binary, content, entries) = web::block(move || {
+        match std::fs::symlink_metadata(_path.clone()) {
+            Ok(metadata) => {
+                if metadata.is_dir() {
+                    return match std::fs::read_dir(_path) {
+                        Ok(read_dir) => {
+                            let mut v = Vec::new();
+                            for entry in read_dir {
+                                if let Ok(entry) = entry {
+                                    if let Some(s) = entry.file_name().to_str() {
+                                        if String::from(s).starts_with(".") {
+                                            continue;
+                                        }
+                                    }
+                                    let path = entry.file_name();
+                                    if let Ok(s) = path.into_string() {
+                                        v.push(s);
+                                    }
+                                }
+                            }
+                            Ok((metadata, false, None, v))
                         }
-                    }
-                    let path = entry.path();
-                    if let Ok(s) = path.into_os_string().into_string() {
-                        v.push(s);
-                    }
+                        Err(err) => Err(format!("failed to read dir: {}", err)),
+                    };
+                } else if metadata.is_file() {
+                    match std::fs::read(_path.clone()) {
+                        Ok(binary) => match String::from_utf8(binary) {
+                            Ok(content) => return Ok((metadata, false, Some(content), vec![])),
+                            Err(_) => return Ok((metadata, true, None, vec![])),
+                        },
+                        Err(err) => return Err(format!("failed to read file: {}", err)),
+                    };
+                } else {
+                    return Ok((metadata, false, None, vec![]));
                 }
             }
-            Ok(v)
-        }
-        Err(err) => Err(err),
+            Err(err) => return Err(format!("failed to stat file: {}", err)),
+        };
     })
     .await?;
 
-    Ok(FileBrowserPage { entries, path }.into_response()?)
+    let mut path = path.clone();
+    if path == "" {
+        path = ".".into()
+    }
+
+    let rootfs = std::env::current_dir()?.to_str().unwrap().into();
+    let realpath = std::fs::canonicalize(path.clone())?
+        .to_str()
+        .unwrap()
+        .into();
+
+    Ok(FileBrowserPage {
+        entries,
+        rootfs,
+        path,
+        realpath,
+        content,
+        metadata,
+    }
+    .into_response()?)
 }
