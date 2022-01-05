@@ -44,9 +44,11 @@
                         {% for branch in branches %}
                         <li><a class="dropdown-item" href="/{{repo_path}}/tree/{{branch}}/">{{ branch }}</a></li>
                         {% endfor %}
+                        {% if branches.is_empty() == tags.is_empty() %}
                         <li>
                             <hr class="dropdown-divider">
                         </li>
+                        {% endif %}
                         {% for tag in tags %}
                         <li><a class="dropdown-item" href="/{{repo_path}}/tree/{{tag}}/">{{ tag }}</a></li>
                         {% endfor %}
