@@ -2,21 +2,28 @@ name: Rust
 
 on:
   push:
-    branches: [ master ]
+    tags:
+      - "*"
   pull_request:
-    branches: [ master ]
+    branches: [master]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+      - uses: actions/checkout@v2
+      - name: Build
+        run: cargo build --verbose --release
+      - name: Run tests
+        run: cargo test --verbose
+      - name: Upload production
+        uses: actions/upload-artifact@v2
+        with:
+          name: binaries
+          path: |
+            target/release/git-lfs-authenticate
+            target/release/git-server
