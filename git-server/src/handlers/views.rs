@@ -384,7 +384,7 @@ pub async fn index(web::Path(path): web::Path<String>) -> actix_web::Result<Http
         _path = String::from(".");
     }
 
-    let (metadata, is_binary, content, entries) = web::block(move || {
+    let (metadata, content, entries) = web::block(move || {
         match std::fs::symlink_metadata(_path.clone()) {
             Ok(metadata) => {
                 if metadata.is_dir() {
@@ -404,20 +404,20 @@ pub async fn index(web::Path(path): web::Path<String>) -> actix_web::Result<Http
                                     }
                                 }
                             }
-                            Ok((metadata, false, None, v))
+                            Ok((metadata, None, v))
                         }
                         Err(err) => Err(format!("failed to read dir: {}", err)),
                     };
                 } else if metadata.is_file() {
                     match std::fs::read(_path.clone()) {
                         Ok(binary) => match String::from_utf8(binary) {
-                            Ok(content) => return Ok((metadata, false, Some(content), vec![])),
-                            Err(_) => return Ok((metadata, true, None, vec![])),
+                            Ok(content) => return Ok((metadata, Some(content), vec![])),
+                            Err(_) => return Ok((metadata, None, vec![])),
                         },
                         Err(err) => return Err(format!("failed to read file: {}", err)),
                     };
                 } else {
-                    return Ok((metadata, false, None, vec![]));
+                    return Ok((metadata, None, vec![]));
                 }
             }
             Err(err) => return Err(format!("failed to stat file: {}", err)),
